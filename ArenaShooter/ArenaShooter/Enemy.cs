@@ -14,7 +14,7 @@ namespace ArenaShooter
 
         }
 
-        public override void Update()
+        public override void Update(HashSet<Keys> pressedKeys)
         {
             
         }

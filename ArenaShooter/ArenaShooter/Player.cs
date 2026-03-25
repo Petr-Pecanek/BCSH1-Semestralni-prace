@@ -14,9 +14,12 @@ namespace ArenaShooter
 
         }
 
-        public override void Update()
+        public override void Update(HashSet<Keys> pressedKeys)
         {
-
+            if (pressedKeys.Contains(Keys.W)) PosY -= Speed;
+            if (pressedKeys.Contains(Keys.A)) PosX -= Speed;
+            if (pressedKeys.Contains(Keys.S)) PosY += Speed;
+            if (pressedKeys.Contains(Keys.D)) PosX += Speed;
         }
 
         public override void Draw(Graphics g)

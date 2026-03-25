@@ -22,7 +22,7 @@ namespace ArenaShooter
             Speed = startSpeed;
         }
 
-        public abstract void Update();
+        public abstract void Update(HashSet<Keys> pressedKeys);
 
         public virtual void Draw(Graphics g)
         {
