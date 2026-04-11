@@ -22,11 +22,16 @@ namespace ArenaShooter
             Speed = startSpeed;
         }
 
+        public float X => PosX;
+        public float Y => PosY;
+
         public abstract void Update(HashSet<Keys> pressedKeys);
 
         public virtual void Draw(Graphics g)
         {
             g.FillRectangle(Brushes.Gray, PosX, PosY, Width, Height);
         }
+
+        public Rectangle Bounds => new Rectangle((int)PosX, (int)PosY, Width, Height);
     }
 }
