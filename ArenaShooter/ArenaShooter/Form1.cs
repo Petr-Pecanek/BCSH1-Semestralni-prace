@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace ArenaShooter
 {
     public partial class Form1 : Form
@@ -10,21 +12,48 @@ namespace ArenaShooter
         private int spawnTimer = 0;
         private int fireCooldown = 0;
 
+        private int currentScore;
+        private GameData gameData = new GameData();
+        private const string SaveFile = "savegame.json";
+
         public Form1()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
-
+            LoadGameData();
             InitializeGame();
         }
 
         private void InitializeGame()
         {
+            allEntities.Clear();
+            currentScore = 0;
+
             player = new Player(100, 100);
             allEntities.Add(player);
 
             timer1.Interval = 20;
             timer1.Start();
+        }
+
+        private void LoadGameData()
+        {
+            if (File.Exists(SaveFile))
+            {
+                string jsonString = File.ReadAllText(SaveFile);
+                gameData = JsonSerializer.Deserialize<GameData>(jsonString);
+            }
+        }
+
+        private void SaveGameData()
+        {
+            gameData.LastScore = currentScore;
+            if (currentScore > gameData.HighScore)
+            {
+                gameData.HighScore = currentScore;
+            }
+            string jsonString = JsonSerializer.Serialize(gameData);
+            File.WriteAllText(SaveFile, jsonString);
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -120,6 +149,7 @@ namespace ArenaShooter
                         {
                             toRemove.Add(enemy);
                             toRemove.Add(bullet);
+                            currentScore += 10;
                         }
                     }
                 }
@@ -138,14 +168,15 @@ namespace ArenaShooter
 
         private bool IsOutOfBounds(Bullet b)
         {
-            return b.X < -100 || b.X > 2000 || b.Y < -100 || b.Y > 2000;
+            return b.X < -100 || b.X > this.ClientSize.Width + 100 || b.Y < -100 || b.Y > this.ClientSize.Height + 100;
         }
         #endregion
 
         private void GameOver()
         {
             timer1.Stop();
-            MessageBox.Show("Game Over! Zombies ate your brain!");
+            SaveGameData();
+            MessageBox.Show($"Game Over! Zombies ate your brain!\nScore: {currentScore}\nBest: {gameData.HighScore}");
             Application.Exit();
         }
 
@@ -156,6 +187,12 @@ namespace ArenaShooter
             {
                 entity.Draw(e.Graphics);
             }
+
+            Font font = new Font("Arial", 10, FontStyle.Bold);
+            float x = 20;
+            e.Graphics.DrawString($"Score: {currentScore}", font, Brushes.Black, x, 20);
+            e.Graphics.DrawString($"Last: {gameData.LastScore}", font, Brushes.Gray, x, 40);
+            e.Graphics.DrawString($"Best: {gameData.HighScore}", font, Brushes.Gold, x, 60);
         }
 
         #region Vstupy (Klávesnice)
@@ -169,5 +206,11 @@ namespace ArenaShooter
             pressedKeys.Remove(e.KeyCode);
         }
         #endregion
+    }
+
+    public class GameData
+    {
+        public int HighScore { get; set; } = 0;
+        public int LastScore { get; set; } = 0;
     }
 }
