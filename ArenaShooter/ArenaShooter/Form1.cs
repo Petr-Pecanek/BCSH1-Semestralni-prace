@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 
 namespace ArenaShooter
 {
@@ -9,8 +10,11 @@ namespace ArenaShooter
         HashSet<Keys> pressedKeys = new HashSet<Keys>();
 
         private Random random = new Random();
-        private int spawnTimer = 0;
+        private string currentDifficulty = "Easy";
+        private int spawnInterval = 40;
+        private int spawnTimer;
         private int fireCooldown = 0;
+        private int pointsPerKill = 5;
 
         private int currentScore;
         private GameData gameData = new GameData();
@@ -20,14 +24,51 @@ namespace ArenaShooter
         {
             InitializeComponent();
             this.DoubleBuffered = true;
+
+            using (DifficultyForm df = new DifficultyForm())
+            {
+                if (df.ShowDialog() == DialogResult.OK)
+                {
+                    currentDifficulty = df.SelectedDifficulty;
+                    ApplyDifficultySettings();
+                } else
+                {
+                    Application.Exit();
+                    return;
+                }
+            }
+
             LoadGameData();
             InitializeGame();
+        }
+
+        private void ApplyDifficultySettings()
+        {
+            switch (currentDifficulty)
+            {
+                case "Easy":
+                    spawnInterval = 40;
+                    pointsPerKill = 5;
+                    this.BackColor = Color.DarkGreen;
+                    break;
+                case "Medium":
+                    spawnInterval= 25;
+                    pointsPerKill = 8;
+                    this.BackColor = Color.DimGray;
+                    break;
+                case "Hard":
+                    spawnInterval = 15;
+                    pointsPerKill = 10;
+                    this.BackColor = Color.FromArgb(20, 20, 20);
+                    break;
+            }
         }
 
         private void InitializeGame()
         {
             allEntities.Clear();
             currentScore = 0;
+            spawnTimer = 0;
 
             player = new Player(100, 100);
             allEntities.Add(player);
@@ -40,24 +81,34 @@ namespace ArenaShooter
         {
             if (File.Exists(SaveFile))
             {
-                string jsonString = File.ReadAllText(SaveFile);
-                gameData = JsonSerializer.Deserialize<GameData>(jsonString);
+                try
+                {
+                    string jsonString = File.ReadAllText(SaveFile);
+                    gameData = JsonSerializer.Deserialize<GameData>(jsonString);
+                } catch
+                {
+                    gameData = new GameData();
+                }
             }
         }
 
         private void SaveGameData()
         {
-            gameData.LastScore = currentScore;
-            if (currentScore > gameData.HighScore)
+            var stats = gameData.Levels[currentDifficulty];
+
+            stats.LastScore = currentScore;
+            if (currentScore > stats.HighScore)
             {
-                gameData.HighScore = currentScore;
+                stats.HighScore = currentScore;
             }
-            string jsonString = JsonSerializer.Serialize(gameData);
+            string jsonString = JsonSerializer.Serialize(gameData, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SaveFile, jsonString);
         }
 
         private void timer1_Tick(object sender, EventArgs e)
         {
+            if (player == null) return;
+
             HandleEnemySpawning();
             HandleAutoShooting();
 
@@ -72,7 +123,7 @@ namespace ArenaShooter
         private void HandleEnemySpawning()
         {
             spawnTimer++;
-            if (spawnTimer >= 50)
+            if (spawnTimer >= spawnInterval)
             {
                 SpawnEnemy();
                 spawnTimer = 0;
@@ -149,7 +200,7 @@ namespace ArenaShooter
                         {
                             toRemove.Add(enemy);
                             toRemove.Add(bullet);
-                            currentScore += 10;
+                            currentScore += pointsPerKill;
                         }
                     }
                 }
@@ -176,7 +227,9 @@ namespace ArenaShooter
         {
             timer1.Stop();
             SaveGameData();
-            MessageBox.Show($"Game Over! Zombies ate your brain!\nScore: {currentScore}\nBest: {gameData.HighScore}");
+
+            var stats = gameData.Levels[currentDifficulty];
+            MessageBox.Show($"Game Over! Zombies ate your brain!\nDifficulty: {currentDifficulty}\nScore: {currentScore}\nBest: {stats.HighScore}");
             Application.Exit();
         }
 
@@ -188,11 +241,16 @@ namespace ArenaShooter
                 entity.Draw(e.Graphics);
             }
 
+            var stats = gameData.Levels[currentDifficulty];
             Font font = new Font("Arial", 10, FontStyle.Bold);
+
+            Brush textBrush = (currentDifficulty == "Hard") ? Brushes.White : Brushes.Black;
+
             float x = 20;
-            e.Graphics.DrawString($"Score: {currentScore}", font, Brushes.Black, x, 20);
-            e.Graphics.DrawString($"Last: {gameData.LastScore}", font, Brushes.Gray, x, 40);
-            e.Graphics.DrawString($"Best: {gameData.HighScore}", font, Brushes.Gold, x, 60);
+            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", font, textBrush, x, 20);
+            e.Graphics.DrawString($"Score: {currentScore}", font, textBrush, x, 40);
+            e.Graphics.DrawString($"Last: {stats.LastScore}", font, Brushes.Gray, x, 60);
+            e.Graphics.DrawString($"Best: {stats.HighScore}", font, Brushes.Gold, x, 80);
         }
 
         #region Vstupy (Klávesnice)
@@ -208,9 +266,67 @@ namespace ArenaShooter
         #endregion
     }
 
-    public class GameData
+    public class DifficultyStats
     {
         public int HighScore { get; set; } = 0;
         public int LastScore { get; set; } = 0;
+    }
+
+    public class GameData
+    {
+        public Dictionary<string, DifficultyStats> Levels { get; set; } = new Dictionary<string, DifficultyStats>()
+        {
+            {"Easy", new DifficultyStats() },
+            {"Medium", new DifficultyStats() },
+            {"Hard", new DifficultyStats() }
+        };
+    }
+    
+    public class DifficultyForm : Form
+    {
+        public string SelectedDifficulty { get; private set; }
+
+        public DifficultyForm()
+        {
+            this.Text = "Arena Shooter - Select Difficulty";
+            this.Size = new Size(300, 250);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.ControlBox = false;
+
+            Label lbl = new Label()
+            {
+                Text = "CHOOSE DIFFICULTY",
+                Dock = DockStyle.Top,
+                Height = 50,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Arial", 14, FontStyle.Bold)
+            };
+
+            Button btnEasy = CreateButton("Easy (Forest)", Color.LightGreen, 0);
+            Button btnMed = CreateButton("Medium (City)", Color.LightGray, 1);
+            Button btnHard = CreateButton("Hard (Graveyard)", Color.IndianRed, 2);
+
+            btnEasy.Click += (s, e) => { SelectedDifficulty = "Easy"; this.DialogResult = DialogResult.OK; };
+            btnMed.Click += (s, e) => { SelectedDifficulty = "Medium"; this.DialogResult = DialogResult.OK; };
+            btnHard.Click += (s, e) => { SelectedDifficulty = "Hard"; this.DialogResult = DialogResult.OK; };
+
+            this.Controls.Add(btnHard);
+            this.Controls.Add(btnMed);
+            this.Controls.Add(btnEasy);
+            this.Controls.Add(lbl);
+        }
+
+        private Button CreateButton(string text, Color color, int index)
+        {
+            return new Button()
+            {
+                Text = text,
+                Dock = DockStyle.Top,
+                Height = 45,
+                BackColor = color,
+                FlatStyle = FlatStyle.Flat
+            };
+        }
     }
 }
