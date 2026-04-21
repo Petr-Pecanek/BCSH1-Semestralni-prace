@@ -10,6 +10,7 @@ namespace ArenaShooter
         HashSet<Keys> pressedKeys = new HashSet<Keys>();
 
         private Random random = new Random();
+
         private string currentDifficulty = "Easy";
         private int spawnInterval = 40;
         private int spawnTimer;
@@ -18,48 +19,45 @@ namespace ArenaShooter
 
         private int currentScore;
         private GameData gameData = new GameData();
-        private const string SaveFile = "savegame.json";
 
         public Form1()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
 
-            using (DifficultyForm df = new DifficultyForm())
+            this.Text = "Arena Shooter: Zombie Apocalypse";
+
+            currentDifficulty = GameDialogs.ShowDifficultySelection();
+            if (currentDifficulty == null)
             {
-                if (df.ShowDialog() == DialogResult.OK)
-                {
-                    currentDifficulty = df.SelectedDifficulty;
-                    ApplyDifficultySettings();
-                } else
-                {
-                    Application.Exit();
-                    return;
-                }
+                Environment.Exit(0);
+                return;
             }
 
-            LoadGameData();
+            ApplyDifficultySettings();
+            gameData = FileManager.Load();
             InitializeGame();
         }
 
         private void ApplyDifficultySettings()
         {
+            this.WindowState = FormWindowState.Maximized;
             switch (currentDifficulty)
             {
                 case "Easy":
                     spawnInterval = 40;
                     pointsPerKill = 5;
-                    this.BackColor = Color.DarkGreen;
+                    this.BackColor = Color.ForestGreen;
                     break;
                 case "Medium":
                     spawnInterval= 25;
                     pointsPerKill = 8;
-                    this.BackColor = Color.DimGray;
+                    this.BackColor = Color.DarkGray;
                     break;
                 case "Hard":
                     spawnInterval = 15;
                     pointsPerKill = 10;
-                    this.BackColor = Color.FromArgb(20, 20, 20);
+                    this.BackColor = Color.DimGray;
                     break;
             }
         }
@@ -70,39 +68,15 @@ namespace ArenaShooter
             currentScore = 0;
             spawnTimer = 0;
 
-            player = new Player(100, 100);
+            var screenBounds = Screen.PrimaryScreen.Bounds;
+            float playerStartX = (screenBounds.Width / 2) - 20;
+            float playerStartY = (screenBounds.Height / 2) - 20;
+
+            player = new Player(playerStartX, playerStartY);
             allEntities.Add(player);
 
             timer1.Interval = 20;
             timer1.Start();
-        }
-
-        private void LoadGameData()
-        {
-            if (File.Exists(SaveFile))
-            {
-                try
-                {
-                    string jsonString = File.ReadAllText(SaveFile);
-                    gameData = JsonSerializer.Deserialize<GameData>(jsonString);
-                } catch
-                {
-                    gameData = new GameData();
-                }
-            }
-        }
-
-        private void SaveGameData()
-        {
-            var stats = gameData.Levels[currentDifficulty];
-
-            stats.LastScore = currentScore;
-            if (currentScore > stats.HighScore)
-            {
-                stats.HighScore = currentScore;
-            }
-            string jsonString = JsonSerializer.Serialize(gameData, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SaveFile, jsonString);
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -119,7 +93,6 @@ namespace ArenaShooter
             this.Invalidate();
         }
 
-        #region Herní Logika (Spawning & Shooting)
         private void HandleEnemySpawning()
         {
             spawnTimer++;
@@ -168,9 +141,7 @@ namespace ArenaShooter
                 fireCooldown = 0;
             }
         }
-        #endregion
 
-        #region Aktualizace a Kolize
         private void UpdateEntities()
         {
             foreach (var entity in allEntities)
@@ -221,20 +192,34 @@ namespace ArenaShooter
         {
             return b.X < -100 || b.X > this.ClientSize.Width + 100 || b.Y < -100 || b.Y > this.ClientSize.Height + 100;
         }
-        #endregion
 
         private void GameOver()
         {
             timer1.Stop();
-            SaveGameData();
 
             var stats = gameData.Levels[currentDifficulty];
-            MessageBox.Show($"Game Over! Zombies ate your brain!\nDifficulty: {currentDifficulty}\nScore: {currentScore}\nBest: {stats.HighScore}");
-            Application.Exit();
+            stats.LastScore = currentScore;
+            if (currentScore > stats.HighScore)
+            {
+                stats.HighScore = currentScore;
+            }
+
+            FileManager.Save(gameData);
+            
+            bool wantsRestart = GameDialogs.ShowGameOver(currentScore, stats.HighScore, currentDifficulty);
+            if (wantsRestart)
+            {
+                InitializeGame();
+            } else
+            {
+                Application.Exit();
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            if (string.IsNullOrEmpty(currentDifficulty) || gameData == null) return;
+
             base.OnPaint(e);
             foreach (var entity in allEntities)
             {
@@ -244,16 +229,13 @@ namespace ArenaShooter
             var stats = gameData.Levels[currentDifficulty];
             Font font = new Font("Arial", 10, FontStyle.Bold);
 
-            Brush textBrush = (currentDifficulty == "Hard") ? Brushes.White : Brushes.Black;
-
             float x = 20;
-            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", font, textBrush, x, 20);
-            e.Graphics.DrawString($"Score: {currentScore}", font, textBrush, x, 40);
+            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", font, Brushes.Black, x, 20);
+            e.Graphics.DrawString($"Score: {currentScore}", font, Brushes.Black, x, 40);
             e.Graphics.DrawString($"Last: {stats.LastScore}", font, Brushes.Gray, x, 60);
             e.Graphics.DrawString($"Best: {stats.HighScore}", font, Brushes.Gold, x, 80);
         }
 
-        #region Vstupy (Klávesnice)
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             pressedKeys.Add(e.KeyCode);
@@ -262,71 +244,6 @@ namespace ArenaShooter
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
             pressedKeys.Remove(e.KeyCode);
-        }
-        #endregion
-    }
-
-    public class DifficultyStats
-    {
-        public int HighScore { get; set; } = 0;
-        public int LastScore { get; set; } = 0;
-    }
-
-    public class GameData
-    {
-        public Dictionary<string, DifficultyStats> Levels { get; set; } = new Dictionary<string, DifficultyStats>()
-        {
-            {"Easy", new DifficultyStats() },
-            {"Medium", new DifficultyStats() },
-            {"Hard", new DifficultyStats() }
-        };
-    }
-    
-    public class DifficultyForm : Form
-    {
-        public string SelectedDifficulty { get; private set; }
-
-        public DifficultyForm()
-        {
-            this.Text = "Arena Shooter - Select Difficulty";
-            this.Size = new Size(300, 250);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.ControlBox = false;
-
-            Label lbl = new Label()
-            {
-                Text = "CHOOSE DIFFICULTY",
-                Dock = DockStyle.Top,
-                Height = 50,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Arial", 14, FontStyle.Bold)
-            };
-
-            Button btnEasy = CreateButton("Easy (Forest)", Color.LightGreen, 0);
-            Button btnMed = CreateButton("Medium (City)", Color.LightGray, 1);
-            Button btnHard = CreateButton("Hard (Graveyard)", Color.IndianRed, 2);
-
-            btnEasy.Click += (s, e) => { SelectedDifficulty = "Easy"; this.DialogResult = DialogResult.OK; };
-            btnMed.Click += (s, e) => { SelectedDifficulty = "Medium"; this.DialogResult = DialogResult.OK; };
-            btnHard.Click += (s, e) => { SelectedDifficulty = "Hard"; this.DialogResult = DialogResult.OK; };
-
-            this.Controls.Add(btnHard);
-            this.Controls.Add(btnMed);
-            this.Controls.Add(btnEasy);
-            this.Controls.Add(lbl);
-        }
-
-        private Button CreateButton(string text, Color color, int index)
-        {
-            return new Button()
-            {
-                Text = text,
-                Dock = DockStyle.Top,
-                Height = 45,
-                BackColor = color,
-                FlatStyle = FlatStyle.Flat
-            };
         }
     }
 }

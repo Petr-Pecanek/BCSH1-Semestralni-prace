@@ -35,7 +35,7 @@ namespace ArenaShooter
 
         public override void Draw(Graphics g)
         {
-            g.FillEllipse(Brushes.Black, PosX, PosY, Width, Height);
+            g.FillEllipse(Brushes.Gold, PosX, PosY, Width, Height);
         }
     }
 }
