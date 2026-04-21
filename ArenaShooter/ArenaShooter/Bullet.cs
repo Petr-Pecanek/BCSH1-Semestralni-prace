@@ -24,6 +24,10 @@ namespace ArenaShooter
             {
                 velocityX = (diffX / distance) * Speed;
                 velocityY = (diffY / distance) * Speed;
+            } else
+            {
+                velocityX = 0;
+                velocityY = -Speed;
             }
         }
 

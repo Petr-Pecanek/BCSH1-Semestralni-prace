@@ -10,6 +10,7 @@ namespace ArenaShooter
         HashSet<Keys> pressedKeys = new HashSet<Keys>();
 
         private Random random = new Random();
+        private Font statsFont = new Font("Arial", 10, FontStyle.Bold);
 
         private string currentDifficulty = "Easy";
         private int spawnInterval = 40;
@@ -19,6 +20,7 @@ namespace ArenaShooter
 
         private int currentScore;
         private GameData gameData = new GameData();
+        private DifficultyStats currentStats;
 
         public Form1()
         {
@@ -34,14 +36,16 @@ namespace ArenaShooter
                 return;
             }
 
-            ApplyDifficultySettings();
             gameData = FileManager.Load();
+            ApplyDifficultySettings();
             InitializeGame();
         }
 
         private void ApplyDifficultySettings()
         {
             this.WindowState = FormWindowState.Maximized;
+            currentStats = gameData.Levels[currentDifficulty];
+
             switch (currentDifficulty)
             {
                 case "Easy":
@@ -64,6 +68,7 @@ namespace ArenaShooter
 
         private void InitializeGame()
         {
+            pressedKeys.Clear();
             allEntities.Clear();
             currentScore = 0;
             spawnTimer = 0;
@@ -72,6 +77,7 @@ namespace ArenaShooter
             float playerStartX = (screenBounds.Width / 2) - 20;
             float playerStartY = (screenBounds.Height / 2) - 20;
 
+            // zakázat hráèovi jít mimo herní plochu
             player = new Player(playerStartX, playerStartY);
             allEntities.Add(player);
 
@@ -148,6 +154,18 @@ namespace ArenaShooter
             {
                 entity.Update(pressedKeys);
             }
+
+            if (player.X < 0) player.X = 0;
+            if (player.Y < 0) player.Y = 0;
+
+            if (player.X + 40 > this.ClientSize.Width)
+            {
+                player.X = this.ClientSize.Width - 40;
+            }
+            if (player.Y + 40 > this.ClientSize.Height)
+            {
+                player.Y = this.ClientSize.Height - 40;
+            }
         }
 
         private void ResolveCollisionsAndCleanup()
@@ -197,16 +215,15 @@ namespace ArenaShooter
         {
             timer1.Stop();
 
-            var stats = gameData.Levels[currentDifficulty];
-            stats.LastScore = currentScore;
-            if (currentScore > stats.HighScore)
+            currentStats.LastScore = currentScore;
+            if (currentScore > currentStats.HighScore)
             {
-                stats.HighScore = currentScore;
+                currentStats.HighScore = currentScore;
             }
 
             FileManager.Save(gameData);
             
-            bool wantsRestart = GameDialogs.ShowGameOver(currentScore, stats.HighScore, currentDifficulty);
+            bool wantsRestart = GameDialogs.ShowGameOver(currentScore, currentStats.HighScore, currentDifficulty);
             if (wantsRestart)
             {
                 InitializeGame();
@@ -226,14 +243,11 @@ namespace ArenaShooter
                 entity.Draw(e.Graphics);
             }
 
-            var stats = gameData.Levels[currentDifficulty];
-            Font font = new Font("Arial", 10, FontStyle.Bold);
-
             float x = 20;
-            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", font, Brushes.Black, x, 20);
-            e.Graphics.DrawString($"Score: {currentScore}", font, Brushes.Black, x, 40);
-            e.Graphics.DrawString($"Last: {stats.LastScore}", font, Brushes.Gray, x, 60);
-            e.Graphics.DrawString($"Best: {stats.HighScore}", font, Brushes.Gold, x, 80);
+            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", statsFont, Brushes.White, x, 20);
+            e.Graphics.DrawString($"Score: {currentScore}", statsFont, Brushes.White, x, 40);
+            e.Graphics.DrawString($"Last: {currentStats.LastScore}", statsFont, Brushes.Gray, x, 60);
+            e.Graphics.DrawString($"Best: {currentStats.HighScore}", statsFont, Brushes.Gold, x, 80);
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)

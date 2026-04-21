@@ -22,8 +22,8 @@ namespace ArenaShooter
             Speed = startSpeed;
         }
 
-        public float X => PosX;
-        public float Y => PosY;
+        public float X { get => PosX; set => PosX = value; }
+        public float Y { get => PosY; set => PosY = value; }
 
         public abstract void Update(HashSet<Keys> pressedKeys);
 

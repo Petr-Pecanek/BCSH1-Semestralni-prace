@@ -20,10 +20,15 @@ namespace ArenaShooter
         {
             if (target != null)
             {
-                if (PosX < target.X) PosX += Speed;
-                if (PosX > target.X) PosX -= Speed;
-                if (PosY < target.Y) PosY += Speed;
-                if (PosY > target.Y) PosY -= Speed;
+                float diffX = target.X - PosX;
+                float diffY = target.Y - PosY;
+                float distance = (float)Math.Sqrt(diffX * diffX + diffY * diffY);
+
+                if (distance > 0)
+                {
+                    PosX += (diffX / distance) * Speed;
+                    PosY += (diffY / distance) * Speed;
+                }
             }
         }
 

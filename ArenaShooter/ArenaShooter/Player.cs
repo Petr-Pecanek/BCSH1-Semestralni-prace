@@ -16,10 +16,21 @@ namespace ArenaShooter
 
         public override void Update(HashSet<Keys> pressedKeys)
         {
-            if (pressedKeys.Contains(Keys.W)) PosY -= Speed;
-            if (pressedKeys.Contains(Keys.A)) PosX -= Speed;
-            if (pressedKeys.Contains(Keys.S)) PosY += Speed;
-            if (pressedKeys.Contains(Keys.D)) PosX += Speed;
+            float moveX = 0;
+            float moveY = 0;
+
+            if (pressedKeys.Contains(Keys.W)) moveY -= 1;
+            if (pressedKeys.Contains(Keys.A)) moveX -= 1;
+            if (pressedKeys.Contains(Keys.S)) moveY += 1;
+            if (pressedKeys.Contains(Keys.D)) moveX += 1;
+
+            float length = (float)Math.Sqrt(moveX * moveX + moveY * moveY);
+
+            if (length > 0)
+            {
+                PosX += (moveX / length) * Speed;
+                PosY += (moveY / length) * Speed;
+            }
         }
 
         public override void Draw(Graphics g)
