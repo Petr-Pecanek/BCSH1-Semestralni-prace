@@ -4,7 +4,7 @@
    - zdroj: https://kenney.nl/assets/top-down-shooter
    - autor: Kenney (kenney.nl)
    - licence: Creative Commons CC0
-   - použito: postava vojáka, ...
+   - použito: soldier1_machine.png, zoimbie1_hold.png
 
 ## Použité technologie a frameworky
 - .NET (verze 8.0/6.0) – základní vývojová platforma pro běh aplikace
