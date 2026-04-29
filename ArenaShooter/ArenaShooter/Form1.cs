@@ -6,6 +6,11 @@ namespace ArenaShooter
     public partial class Form1 : Form
     {
         private Player player;
+        private Image playerImg;
+        private Image enemyImg;
+        private bool isMouseDown = false;
+        private Point mousePos;
+
         private List<Entity> allEntities = new List<Entity>();
         HashSet<Keys> pressedKeys = new HashSet<Keys>();
 
@@ -26,8 +31,17 @@ namespace ArenaShooter
         {
             InitializeComponent();
             this.DoubleBuffered = true;
-
             this.Text = "Arena Shooter: Zombie Apocalypse";
+
+            this.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) isMouseDown = true; };
+            this.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) isMouseDown = false; };
+            this.MouseMove += (s, e) => { mousePos = e.Location; };
+
+            try
+            {
+                playerImg = Image.FromFile("Assets/soldier1_machine.png");
+                enemyImg = Image.FromFile("Assets/zoimbie1_hold.png");
+            } catch { }
 
             currentDifficulty = GameDialogs.ShowDifficultySelection();
             if (currentDifficulty == null)
@@ -68,17 +82,18 @@ namespace ArenaShooter
 
         private void InitializeGame()
         {
+            Cursor.Hide();
+
             pressedKeys.Clear();
             allEntities.Clear();
             currentScore = 0;
             spawnTimer = 0;
 
+            player = new Player(0, 0, playerImg);
             var screenBounds = Screen.PrimaryScreen.Bounds;
-            float playerStartX = (screenBounds.Width / 2) - 20;
-            float playerStartY = (screenBounds.Height / 2) - 20;
+            player.X = (screenBounds.Width / 2) - (player.Width / 2);
+            player.Y = (screenBounds.Height / 2) - (player.Height / 2);
 
-            // zakázat hráèovi jít mimo herní plochu
-            player = new Player(playerStartX, playerStartY);
             allEntities.Add(player);
 
             timer1.Interval = 20;
@@ -90,9 +105,15 @@ namespace ArenaShooter
             if (player == null) return;
 
             HandleEnemySpawning();
-            HandleAutoShooting();
+            if (isMouseDown)
+            {
+                HandleManualShooting();
+            } else
+            {
+                if (fireCooldown < 10) fireCooldown++;
+            }
 
-            UpdateEntities();
+                UpdateEntities();
 
             ResolveCollisionsAndCleanup();
 
@@ -134,22 +155,29 @@ namespace ArenaShooter
                     break;
             }
 
-            allEntities.Add(new Enemy(x, y, player));
+            allEntities.Add(new Enemy(x, y, player, enemyImg));
         }
 
-        private void HandleAutoShooting()
+        private void HandleManualShooting()
         {
             fireCooldown++;
             if (fireCooldown >= 10)
             {
-                var localMouse = this.PointToClient(Cursor.Position);
-                allEntities.Add(new Bullet(player.X + 15, player.Y + 15, localMouse.X, localMouse.Y));
+                allEntities.Add(new Bullet(
+                    player.X + (player.Width / 2),
+                    player.Y + (player.Height / 2),
+                    mousePos.X,
+                    mousePos.Y));
+
                 fireCooldown = 0;
             }
         }
 
         private void UpdateEntities()
         {
+            Point localMouse = this.PointToClient(Cursor.Position);
+            player.UpdateRotation(localMouse);
+
             foreach (var entity in allEntities)
             {
                 entity.Update(pressedKeys);
@@ -158,13 +186,13 @@ namespace ArenaShooter
             if (player.X < 0) player.X = 0;
             if (player.Y < 0) player.Y = 0;
 
-            if (player.X + 40 > this.ClientSize.Width)
+            if (player.X + player.Width > this.ClientSize.Width)
             {
-                player.X = this.ClientSize.Width - 40;
+                player.X = this.ClientSize.Width - player.Width;
             }
-            if (player.Y + 40 > this.ClientSize.Height)
+            if (player.Y + player.Height > this.ClientSize.Height)
             {
-                player.Y = this.ClientSize.Height - 40;
+                player.Y = this.ClientSize.Height - player.Height;
             }
         }
 
@@ -215,6 +243,8 @@ namespace ArenaShooter
         {
             timer1.Stop();
 
+            Cursor.Show();
+
             currentStats.LastScore = currentScore;
             if (currentScore > currentStats.HighScore)
             {
@@ -248,6 +278,15 @@ namespace ArenaShooter
             e.Graphics.DrawString($"Score: {currentScore}", statsFont, Brushes.White, x, 40);
             e.Graphics.DrawString($"Last: {currentStats.LastScore}", statsFont, Brushes.Gray, x, 60);
             e.Graphics.DrawString($"Best: {currentStats.HighScore}", statsFont, Brushes.Gold, x, 80);
+
+            if (!timer1.Enabled) return;
+
+            using (Pen sightPen = new Pen(Color.Red, 2))
+            {
+                e.Graphics.DrawLine(sightPen, mousePos.X - 10, mousePos.Y, mousePos.X + 10, mousePos.Y);
+                e.Graphics.DrawLine(sightPen, mousePos.X, mousePos.Y - 10, mousePos.X, mousePos.Y + 10);
+                e.Graphics.DrawEllipse(sightPen, mousePos.X - 5, mousePos.Y - 5, 10, 10);
+            }
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)

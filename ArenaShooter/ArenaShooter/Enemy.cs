@@ -10,31 +10,33 @@ namespace ArenaShooter
     public class Enemy : Entity
     {
         private Player target;
+        private float animTimer = 0;
 
-        public Enemy(float startX, float startY, Player playerTarget) : base(startX, startY, 2.0f)
+        public Enemy(float startX, float startY, Player playerTarget, Image enemyImg) : base(startX, startY, 2.0f)
         {
             this.target = playerTarget;
+            this.sprite = enemyImg;
         }
 
         public override void Update(HashSet<Keys> pressedKeys)
         {
             if (target != null)
             {
-                float diffX = target.X - PosX;
-                float diffY = target.Y - PosY;
+                float diffX = target.X - posX;
+                float diffY = target.Y - posY;
                 float distance = (float)Math.Sqrt(diffX * diffX + diffY * diffY);
 
                 if (distance > 0)
                 {
-                    PosX += (diffX / distance) * Speed;
-                    PosY += (diffY / distance) * Speed;
+                    rotation = (float)(Math.Atan2(diffY, diffX) * 180 / Math.PI);
+
+                    animTimer += 0.15f;
+                    aimOffset = (float)Math.Sin(animTimer) * 15f;
+
+                    posX += (diffX / distance) * speed;
+                    posY += (diffY / distance) * speed;
                 }
             }
-        }
-
-        public override void Draw(Graphics g)
-        {
-            g.FillRectangle(Brushes.Red, PosX, PosY, Width, Height);
         }
     }
 }

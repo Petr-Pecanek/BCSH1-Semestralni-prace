@@ -9,9 +9,10 @@ namespace ArenaShooter
 {
     public class Player : Entity
     {
-        public Player(float startX, float startY) : base(startX, startY, 5.0f) 
+        private float animTimer = 0;
+        public Player(float startX, float startY, Image playerImg) : base(startX, startY, 5.0f) 
         {
-
+            this.sprite = playerImg;
         }
 
         public override void Update(HashSet<Keys> pressedKeys)
@@ -28,14 +29,24 @@ namespace ArenaShooter
 
             if (length > 0)
             {
-                PosX += (moveX / length) * Speed;
-                PosY += (moveY / length) * Speed;
+                animTimer += 0.2f;
+                aimOffset = (float)Math.Sin(animTimer) * 12f;
+
+                posX += (moveX / length) * speed;
+                posY += (moveY / length) * speed;
+            } else
+            {
+                animTimer = 0; 
+                aimOffset = 0;
             }
         }
 
-        public override void Draw(Graphics g)
+        public void UpdateRotation(Point mousePos)
         {
-            g.FillRectangle(Brushes.Blue, PosX, PosY, Width, Height);
+            float diffX = mousePos.X - (posX + Width / 2);
+            float diffY = mousePos.Y - (posY + Height / 2);
+
+            rotation = (float)(Math.Atan2(diffY, diffX) * 180 / Math.PI);
         }
     }
 }

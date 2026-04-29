@@ -13,8 +13,8 @@ namespace ArenaShooter
 
         public Bullet(float startX, float startY, int targetX, int targetY) : base(startX, startY, 12.0f)
         {
-            this.Width = 8;
-            this.Height = 8;
+            this.width = 8;
+            this.height = 8;
 
             float diffX = targetX - startX;
             float diffY = targetY - startY;
@@ -22,24 +22,24 @@ namespace ArenaShooter
 
             if (distance > 0)
             {
-                velocityX = (diffX / distance) * Speed;
-                velocityY = (diffY / distance) * Speed;
+                velocityX = (diffX / distance) * speed;
+                velocityY = (diffY / distance) * speed;
             } else
             {
                 velocityX = 0;
-                velocityY = -Speed;
+                velocityY = -speed;
             }
         }
 
         public override void Update(HashSet<Keys> pressedKeys)
         {
-            PosX += velocityX;
-            PosY += velocityY;
+            posX += velocityX;
+            posY += velocityY;
         }
 
         public override void Draw(Graphics g)
         {
-            g.FillEllipse(Brushes.Gold, PosX, PosY, Width, Height);
+            g.FillEllipse(Brushes.Gold, posX, posY, width, height);
         }
     }
 }

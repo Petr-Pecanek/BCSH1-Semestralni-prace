@@ -9,29 +9,40 @@ namespace ArenaShooter
 {
     public abstract class Entity
     {
-        protected float PosX;
-        protected float PosY;
-        protected int Width = 40;
-        protected int Height = 40;
-        protected float Speed;
+        protected float posX;
+        protected float posY;
+        protected int width = 40;
+        protected int height = 40;
+        protected float speed;
+        protected Image sprite;
+        protected float rotation = 0;
+        protected float aimOffset = 0;
 
         public Entity(float startX, float startY, float startSpeed)
         {
-            PosX = startX;
-            PosY = startY;
-            Speed = startSpeed;
+            posX = startX;
+            posY = startY;
+            speed = startSpeed;
         }
 
-        public float X { get => PosX; set => PosX = value; }
-        public float Y { get => PosY; set => PosY = value; }
+        public float X { get => posX; set => posX = value; }
+        public float Y { get => posY; set => posY = value; }
+        public int Width { get => width; set => width = value; }
+        public int Height { get => height; set => height = value; }
 
         public abstract void Update(HashSet<Keys> pressedKeys);
 
         public virtual void Draw(Graphics g)
         {
-            g.FillRectangle(Brushes.Gray, PosX, PosY, Width, Height);
+            if (sprite == null) return;
+
+            var state = g.Save();
+            g.TranslateTransform(posX + width / 2, posY + height / 2);
+            g.RotateTransform(rotation + aimOffset);
+            g.DrawImage(sprite, -width / 2, -height / 2, width, height);
+            g.Restore(state);
         }
 
-        public Rectangle Bounds => new Rectangle((int)PosX, (int)PosY, Width, Height);
+        public Rectangle Bounds => new Rectangle((int)posX, (int)posY, width, height);
     }
 }
