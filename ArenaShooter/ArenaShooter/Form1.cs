@@ -13,6 +13,7 @@ namespace ArenaShooter
 
         private List<Entity> allEntities = new List<Entity>();
         HashSet<Keys> pressedKeys = new HashSet<Keys>();
+        private List<Obstacle> obstacles = new List<Obstacle>();
 
         private Random random = new Random();
         private Font statsFont = new Font("Arial", 10, FontStyle.Bold);
@@ -80,6 +81,23 @@ namespace ArenaShooter
             }
         }
 
+        private void SetupMap()
+        {
+            obstacles.Clear();
+            allEntities.RemoveAll(e => e is Obstacle);
+
+            if (currentDifficulty == "Easy")
+            {
+                obstacles.Add(new Obstacle(200, 200, 100, 40, Color.SaddleBrown));
+                obstacles.Add(new Obstacle(600, 400, 40, 150, Color.SaddleBrown));
+            }
+
+            foreach (var wall in obstacles)
+            {
+                allEntities.Add(wall);
+            }
+        }
+
         private void InitializeGame()
         {
             Cursor.Hide();
@@ -95,6 +113,7 @@ namespace ArenaShooter
             player.Y = (screenBounds.Height / 2) - (player.Height / 2);
 
             allEntities.Add(player);
+            SetupMap();
 
             timer1.Interval = 20;
             timer1.Start();
@@ -178,11 +197,41 @@ namespace ArenaShooter
             Point localMouse = this.PointToClient(Cursor.Position);
             player.UpdateRotation(localMouse);
 
+            float playerOldX = player.X;
+            float playerOldY = player.Y;
+
             foreach (var entity in allEntities)
             {
+                float entOldX = entity.X;
+                float entOldY = entity.Y;
+
                 entity.Update(pressedKeys);
+
+                if (entity is Enemy enemy)
+                {
+                    HandleEntityWallCollision(enemy, entOldX, entOldY);
+                }
             }
 
+            HandleEntityWallCollision(player, playerOldX, playerOldY);
+            KeepPlayerInScreenBounds();
+        }
+
+        private void HandleEntityWallCollision(Entity entity, float oldX, float oldY)
+        {
+            foreach (var wall in obstacles)
+            {
+                if (entity.Bounds.IntersectsWith(wall.Bounds))
+                {
+                    entity.X = oldX;
+                    entity.Y = oldY;
+                    break;
+                }
+            }
+        }
+
+        private void KeepPlayerInScreenBounds() 
+        {
             if (player.X < 0) player.X = 0;
             if (player.Y < 0) player.Y = 0;
 
@@ -225,6 +274,18 @@ namespace ArenaShooter
                 if (entity is Bullet b && IsOutOfBounds(b))
                 {
                     toRemove.Add(b);
+                }
+            }
+
+            foreach (var bullet in allEntities.OfType<Bullet>().ToList())
+            {
+                foreach (var wall in obstacles)
+                {
+                    if (bullet.Bounds.IntersectsWith(wall.Bounds))
+                    {
+                        toRemove.Add(bullet);
+                        break;
+                    }
                 }
             }
 
