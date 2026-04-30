@@ -86,10 +86,53 @@ namespace ArenaShooter
             obstacles.Clear();
             allEntities.RemoveAll(e => e is Obstacle);
 
-            if (currentDifficulty == "Easy")
+            var screenBounds = Screen.PrimaryScreen.Bounds;
+            int w = screenBounds.Width;
+            int h = screenBounds.Height;
+
+            switch (currentDifficulty)
             {
-                obstacles.Add(new Obstacle(200, 200, 100, 40, Color.SaddleBrown));
-                obstacles.Add(new Obstacle(600, 400, 40, 150, Color.SaddleBrown));
+                case "Easy":
+                    obstacles.Add(new Obstacle(150, 150, 100, 100, Color.DarkGreen));
+                    obstacles.Add(new Obstacle(200, 180, 80, 80, Color.Green));
+                    obstacles.Add(new Obstacle(w - 300, 150, 120, 120, Color.DarkGreen));
+                    obstacles.Add(new Obstacle(200, h - 300, 240, 60, Color.SaddleBrown));
+                    obstacles.Add(new Obstacle(w / 2 + 100, h / 2 - 50, 120, 120, Color.DarkGreen));
+                    break;
+
+                case "Medium":
+                    int buildingWidth = 150;
+                    int buildingHeight = 300;
+
+                    obstacles.Add(new Obstacle(w / 4, 0, buildingWidth, buildingHeight, Color.Gray));
+                    obstacles.Add(new Obstacle(w / 4, h - buildingHeight, buildingWidth, buildingHeight, Color.Gray));
+
+                    obstacles.Add(new Obstacle(3 * w / 4 - buildingWidth, 0, buildingWidth, buildingHeight, Color.Gray));
+                    obstacles.Add(new Obstacle(3 * w / 4 - buildingWidth, h - buildingHeight, buildingWidth, buildingHeight, Color.Gray));
+
+                    obstacles.Add(new Obstacle(w / 2 - 120, h / 2 - 120, 80, 80, Color.DarkSlateGray));
+                    obstacles.Add(new Obstacle(w / 2 + 120, h / 2 + 120, 80, 80, Color.DarkSlateGray));
+                    break;
+
+                case "Hard":
+                    for (int x = 300; x < w - 300; x += 400)
+                    {
+                        for (int y = 150; y < h - 150; y += 250)
+                        {
+                            int offsetX = random.Next(-60, 61);
+                            int offsetY = random.Next(-60, 61);
+
+                            int finalX = x + offsetX;
+                            int finalY = y + offsetY;
+
+                            if (Math.Abs(finalX - w / 2) < 120 && Math.Abs(finalY - h / 2) < 120)
+                                continue;
+
+                            obstacles.Add(new Obstacle(finalX, finalY, 40, 60, Color.LightGray));
+                            obstacles.Add(new Obstacle(finalX - 10, finalY + 50, 60, 15, Color.Silver));
+                        }
+                    }
+                    break;
             }
 
             foreach (var wall in obstacles)
@@ -104,6 +147,7 @@ namespace ArenaShooter
 
             pressedKeys.Clear();
             allEntities.Clear();
+            isMouseDown = false;
             currentScore = 0;
             spawnTimer = 0;
 
@@ -248,36 +292,29 @@ namespace ArenaShooter
         private void ResolveCollisionsAndCleanup()
         {
             List<Entity> toRemove = new List<Entity>();
+            var bullets = allEntities.OfType<Bullet>().ToList();
+            var enemies = allEntities.OfType<Enemy>().ToList();
 
-            foreach (var entity in allEntities)
+            foreach (var enemy in enemies)
             {
-
-                if (entity is Enemy enemy)
+                if (player.Bounds.IntersectsWith(enemy.Bounds))
                 {
-                    if (player.Bounds.IntersectsWith(enemy.Bounds))
-                    {
-                        GameOver();
-                        return;
-                    }
-
-                    foreach (var bullet in allEntities.OfType<Bullet>())
-                    {
-                        if (bullet.Bounds.IntersectsWith(enemy.Bounds))
-                        {
-                            toRemove.Add(enemy);
-                            toRemove.Add(bullet);
-                            currentScore += pointsPerKill;
-                        }
-                    }
+                    GameOver();
+                    return;
                 }
 
-                if (entity is Bullet b && IsOutOfBounds(b))
+                foreach (var bullet in bullets)
                 {
-                    toRemove.Add(b);
+                    if (bullet.Bounds.IntersectsWith(enemy.Bounds))
+                    {
+                        toRemove.Add(enemy);
+                        toRemove.Add(bullet);
+                        currentScore += pointsPerKill;
+                    }
                 }
             }
 
-            foreach (var bullet in allEntities.OfType<Bullet>().ToList())
+            foreach (var bullet in bullets)
             {
                 foreach (var wall in obstacles)
                 {
@@ -286,6 +323,11 @@ namespace ArenaShooter
                         toRemove.Add(bullet);
                         break;
                     }
+                }
+
+                if (IsOutOfBounds(bullet))
+                {
+                    toRemove.Add(bullet);
                 }
             }
 
