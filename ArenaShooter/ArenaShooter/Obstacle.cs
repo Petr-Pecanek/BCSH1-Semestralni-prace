@@ -10,6 +10,14 @@ namespace ArenaShooter
     {
         private Color color;
 
+        public Obstacle(float x, float y, int w, int h, Image obstacleImg) : base(x, y, 0)
+        {
+            this.width = w;
+            this.height = h;
+            this.sprite = obstacleImg;
+            this.hitboxOffset = 12;
+        }
+
         public Obstacle(float x, float y, int w, int h, Color col) : base(x, y, 0)
         {
             this.width = w;
@@ -17,17 +25,21 @@ namespace ArenaShooter
             this.color = col;
         }
 
-        public override void Update(HashSet<Keys> pressedKeys)
-        {
-            
-        }
+        public override void Update(HashSet<Keys> pressedKeys) { }
 
         public override void Draw(Graphics g)
         {
-            using (Brush b = new SolidBrush(color))
+            if (sprite != null)
             {
-                g.FillRectangle(b, posX, posY, width, height);
-                g.DrawRectangle(Pens.Black, posX, posY, width, height);
+                base.Draw(g);
+            }
+            else
+            {
+                using (Brush b = new SolidBrush(color))
+                {
+                    g.FillRectangle(b, posX, posY, width, height);
+                    g.DrawRectangle(Pens.Black, posX, posY, width, height);
+                }
             }
         }
     }

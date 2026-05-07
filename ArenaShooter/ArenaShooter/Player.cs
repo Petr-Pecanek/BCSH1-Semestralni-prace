@@ -13,6 +13,7 @@ namespace ArenaShooter
         public Player(float startX, float startY, Image playerImg) : base(startX, startY, 5.0f) 
         {
             this.sprite = playerImg;
+            this.hitboxOffset = 5;
         }
 
         public override void Update(HashSet<Keys> pressedKeys)

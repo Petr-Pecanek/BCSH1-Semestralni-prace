@@ -1,10 +1,22 @@
-using System.Text.Json;
+using System;
 using System.IO;
+using System.Text.Json;
 
 namespace ArenaShooter
 {
     public partial class Form1 : Form
     {
+        // 1. kolize zombies vùèi ostatním (h), pøidání pozadí do map (h) a asstù jako pøekážky
+        // (h - easy) + zombíci musí obcházet pøekážky jako sami sebe (h), upravit hitboxy
+        // pøekážek (h)
+        // 2. uspoøádat soubory do složek, dodìlat dokumentaci - pøidat postup
+        // a zdokumentovat nové assety do map
+        // 3. udìlat si v kódu poøádek - rozdìlení do metod podle funkce
+        // a odstranìní magic numbers („coding guidelines“ a „naming conventions“
+        // podle jazyka C#)
+        // 4. nauèit se na obhajobu co je to genericita, delegáty, animaèní vlákno atd.
+        // 5. po obhajobì to smazat z gitu - je to chaos a nechci to tam
+
         private Player player;
         private Image playerImg;
         private Image enemyImg;
@@ -27,6 +39,11 @@ namespace ArenaShooter
         private int currentScore;
         private GameData gameData = new GameData();
         private DifficultyStats currentStats;
+
+        private TextureBrush bgBrush;
+        private Image easyTreeImage;
+        private Image easyBushImage;
+        private Image easyWoodImage;
 
         public Form1()
         {
@@ -61,23 +78,34 @@ namespace ArenaShooter
             this.WindowState = FormWindowState.Maximized;
             currentStats = gameData.Levels[currentDifficulty];
 
+            this.BackColor = Color.White;
+            Image tileImg = null;
+
             switch (currentDifficulty)
             {
                 case "Easy":
                     spawnInterval = 40;
                     pointsPerKill = 5;
                     this.BackColor = Color.ForestGreen;
+                    try { tileImg = Image.FromFile("Assets/tile_3.png"); } catch { }
                     break;
                 case "Medium":
                     spawnInterval= 25;
                     pointsPerKill = 8;
                     this.BackColor = Color.DarkGray;
+                    try { tileImg = Image.FromFile("Assets/tile_169.png"); } catch { }
                     break;
                 case "Hard":
                     spawnInterval = 15;
                     pointsPerKill = 10;
                     this.BackColor = Color.DimGray;
+                    try { tileImg = Image.FromFile("Assets/tile_6.png"); } catch { }
                     break;
+            }
+
+            if (tileImg != null)
+            {
+                bgBrush = new TextureBrush(tileImg);
             }
         }
 
@@ -86,53 +114,11 @@ namespace ArenaShooter
             obstacles.Clear();
             allEntities.RemoveAll(e => e is Obstacle);
 
-            var screenBounds = Screen.PrimaryScreen.Bounds;
-            int w = screenBounds.Width;
-            int h = screenBounds.Height;
-
             switch (currentDifficulty)
             {
-                case "Easy":
-                    obstacles.Add(new Obstacle(150, 150, 100, 100, Color.DarkGreen));
-                    obstacles.Add(new Obstacle(200, 180, 80, 80, Color.Green));
-                    obstacles.Add(new Obstacle(w - 300, 150, 120, 120, Color.DarkGreen));
-                    obstacles.Add(new Obstacle(200, h - 300, 240, 60, Color.SaddleBrown));
-                    obstacles.Add(new Obstacle(w / 2 + 100, h / 2 - 50, 120, 120, Color.DarkGreen));
-                    break;
-
-                case "Medium":
-                    int buildingWidth = 150;
-                    int buildingHeight = 300;
-
-                    obstacles.Add(new Obstacle(w / 4, 0, buildingWidth, buildingHeight, Color.Gray));
-                    obstacles.Add(new Obstacle(w / 4, h - buildingHeight, buildingWidth, buildingHeight, Color.Gray));
-
-                    obstacles.Add(new Obstacle(3 * w / 4 - buildingWidth, 0, buildingWidth, buildingHeight, Color.Gray));
-                    obstacles.Add(new Obstacle(3 * w / 4 - buildingWidth, h - buildingHeight, buildingWidth, buildingHeight, Color.Gray));
-
-                    obstacles.Add(new Obstacle(w / 2 - 120, h / 2 - 120, 80, 80, Color.DarkSlateGray));
-                    obstacles.Add(new Obstacle(w / 2 + 120, h / 2 + 120, 80, 80, Color.DarkSlateGray));
-                    break;
-
-                case "Hard":
-                    for (int x = 300; x < w - 300; x += 400)
-                    {
-                        for (int y = 150; y < h - 150; y += 250)
-                        {
-                            int offsetX = random.Next(-60, 61);
-                            int offsetY = random.Next(-60, 61);
-
-                            int finalX = x + offsetX;
-                            int finalY = y + offsetY;
-
-                            if (Math.Abs(finalX - w / 2) < 120 && Math.Abs(finalY - h / 2) < 120)
-                                continue;
-
-                            obstacles.Add(new Obstacle(finalX, finalY, 40, 60, Color.LightGray));
-                            obstacles.Add(new Obstacle(finalX - 10, finalY + 50, 60, 15, Color.Silver));
-                        }
-                    }
-                    break;
+                case "Easy": SetupEasyForest(); break;
+                case "Medium": SetupMediumCity(); break;
+                case "Hard": SetupHardGraveyard(); break;
             }
 
             foreach (var wall in obstacles)
@@ -141,10 +127,59 @@ namespace ArenaShooter
             }
         }
 
+        private void SetupEasyForest()
+        {
+            var screen = Screen.PrimaryScreen.Bounds;
+
+            try
+            {
+                easyTreeImage = Image.FromFile("Assets/tile_183.png");
+                easyBushImage = Image.FromFile("Assets/tile_210.png");
+                easyWoodImage = Image.FromFile("Assets/tile_265.png");
+            }
+            catch { }
+
+            for (int x = 100; x < screen.Width - 100; x += 200)
+            {
+                for (int y = 100; y < screen.Height - 100; y += 200)
+                {
+                    if (Math.Abs(x - screen.Width / 2) < 150 && Math.Abs(y - screen.Height / 2) < 150)
+                        continue;
+
+                    int offsetX = random.Next(-40, 40);
+                    int offsetY = random.Next(-40, 40);
+
+                    int type = random.Next(4);
+
+                    if (type == 0 || type == 1)
+                    {
+                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 64, 64, easyTreeImage));
+                    }
+                    else if (type == 2)
+                    {
+                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 45, 45, easyBushImage));
+                    }
+                    else
+                    {
+                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 50, 40, easyWoodImage));
+                    }
+                }
+            }
+        }
+
+        private void SetupMediumCity()
+        {
+
+        }
+
+        private void SetupHardGraveyard()
+        {
+
+        }
+
         private void InitializeGame()
         {
             Cursor.Hide();
-
             pressedKeys.Clear();
             allEntities.Clear();
             isMouseDown = false;
@@ -168,6 +203,7 @@ namespace ArenaShooter
             if (player == null) return;
 
             HandleEnemySpawning();
+
             if (isMouseDown)
             {
                 HandleManualShooting();
@@ -176,8 +212,7 @@ namespace ArenaShooter
                 if (fireCooldown < 10) fireCooldown++;
             }
 
-                UpdateEntities();
-
+            UpdateEntities();
             ResolveCollisionsAndCleanup();
 
             this.Invalidate();
@@ -246,19 +281,48 @@ namespace ArenaShooter
 
             foreach (var entity in allEntities)
             {
-                float entOldX = entity.X;
-                float entOldY = entity.Y;
-
                 entity.Update(pressedKeys);
+            }
 
+            var enemies = allEntities.OfType<Enemy>().ToList();
+
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                foreach (var wall in obstacles)
+                {
+                    ApplyRepelForce(enemies[i], wall, 50);
+                }
+
+                for (int j = i + 1; j < enemies.Count; j++)
+                {
+                    ApplyRepelForce(enemies[i], enemies[j], 40);
+                    ApplyRepelForce(enemies[j], enemies[i], 40);
+                }
+            }
+
+            foreach (var entity in allEntities)
+            {
                 if (entity is Enemy enemy)
                 {
-                    HandleEntityWallCollision(enemy, entOldX, entOldY);
+                    HandleEntityWallCollision(enemy, enemy.X, enemy.Y);
                 }
             }
 
             HandleEntityWallCollision(player, playerOldX, playerOldY);
             KeepPlayerInScreenBounds();
+        }
+
+        private void ApplyRepelForce(Entity toMove, Entity awayFrom, float repelDistance)
+        {
+            float dx = (toMove.X + toMove.Width / 2) - (awayFrom.X + awayFrom.Width / 2);
+            float dy = (toMove.Y + toMove.Height / 2) - (awayFrom.Y + awayFrom.Height / 2);
+            float dist = (float)Math.Sqrt(dx * dx + dy * dy);
+
+            if (dist <  repelDistance && dist > 0)
+            {
+                toMove.X += (dx / dist) * (repelDistance - dist) * 0.15f;
+                toMove.Y += (dy / dist) * (repelDistance - dist) * 0.15f;
+            }
         }
 
         private void HandleEntityWallCollision(Entity entity, float oldX, float oldY)
@@ -371,10 +435,22 @@ namespace ArenaShooter
             if (string.IsNullOrEmpty(currentDifficulty) || gameData == null) return;
 
             base.OnPaint(e);
-            foreach (var entity in allEntities)
+
+            if (bgBrush != null)
             {
-                entity.Draw(e.Graphics);
+                e.Graphics.FillRectangle(bgBrush, this.ClientRectangle);
+            } else
+            {
+                using (Brush b = new SolidBrush(this.BackColor))
+                {
+                    e.Graphics.FillRectangle(b, this.ClientRectangle);
+                }
             }
+
+                foreach (var entity in allEntities)
+                {
+                    entity.Draw(e.Graphics);
+                }
 
             float x = 20;
             e.Graphics.DrawString($"Difficulty: {currentDifficulty}", statsFont, Brushes.White, x, 20);

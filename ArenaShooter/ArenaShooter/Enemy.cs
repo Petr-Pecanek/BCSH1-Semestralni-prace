@@ -16,6 +16,7 @@ namespace ArenaShooter
         {
             this.target = playerTarget;
             this.sprite = enemyImg;
+            this.hitboxOffset = 5;
         }
 
         public override void Update(HashSet<Keys> pressedKeys)

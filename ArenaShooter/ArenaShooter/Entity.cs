@@ -17,6 +17,7 @@ namespace ArenaShooter
         protected Image sprite;
         protected float rotation = 0;
         protected float aimOffset = 0;
+        protected int hitboxOffset = 0;
 
         public Entity(float startX, float startY, float startSpeed)
         {
@@ -43,6 +44,17 @@ namespace ArenaShooter
             g.Restore(state);
         }
 
-        public Rectangle Bounds => new Rectangle((int)posX, (int)posY, width, height);
+        public virtual Rectangle Bounds
+        {
+            get
+            {
+                return new Rectangle(
+                    (int)posX + hitboxOffset,
+                    (int)posY + hitboxOffset,
+                    width - (hitboxOffset * 2),
+                    height - (hitboxOffset * 2)
+                );
+            }
+        }
     }
 }
