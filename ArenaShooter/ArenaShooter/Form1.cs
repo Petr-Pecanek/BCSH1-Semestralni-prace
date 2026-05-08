@@ -7,7 +7,7 @@ namespace ArenaShooter
     public partial class Form1 : Form
     {
         // 1. kolize zombies vùèi ostatním (h), pøidání pozadí do map (h) a asstù jako pøekážky
-        // (h - easy) + zombíci musí obcházet pøekážky jako sami sebe (h), upravit hitboxy
+        // (h - all) + zombíci musí obcházet pøekážky jako sami sebe (h), upravit hitboxy
         // pøekážek (h)
         // 2. uspoøádat soubory do složek, dodìlat dokumentaci - pøidat postup
         // a zdokumentovat nové assety do map
@@ -41,9 +41,9 @@ namespace ArenaShooter
         private DifficultyStats currentStats;
 
         private TextureBrush bgBrush;
-        private Image easyTreeImage;
-        private Image easyBushImage;
-        private Image easyWoodImage;
+        private List<Image> easyAssets = new List<Image>();
+        private List<Image> mediumAssets = new List<Image>();
+        private List<Image> hardAssets = new List<Image>();
 
         public Form1()
         {
@@ -55,11 +55,7 @@ namespace ArenaShooter
             this.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) isMouseDown = false; };
             this.MouseMove += (s, e) => { mousePos = e.Location; };
 
-            try
-            {
-                playerImg = Image.FromFile("Assets/soldier1_machine.png");
-                enemyImg = Image.FromFile("Assets/zoimbie1_hold.png");
-            } catch { }
+            LoadAllAssets();
 
             currentDifficulty = GameDialogs.ShowDifficultySelection();
             if (currentDifficulty == null)
@@ -79,7 +75,7 @@ namespace ArenaShooter
             currentStats = gameData.Levels[currentDifficulty];
 
             this.BackColor = Color.White;
-            Image tileImg = null;
+            Image bgImg = null;
 
             switch (currentDifficulty)
             {
@@ -87,25 +83,55 @@ namespace ArenaShooter
                     spawnInterval = 40;
                     pointsPerKill = 5;
                     this.BackColor = Color.ForestGreen;
-                    try { tileImg = Image.FromFile("Assets/tile_3.png"); } catch { }
+                    try { bgImg = Image.FromFile("Assets/easy_bg.png"); } catch { }
                     break;
                 case "Medium":
                     spawnInterval= 25;
                     pointsPerKill = 8;
                     this.BackColor = Color.DarkGray;
-                    try { tileImg = Image.FromFile("Assets/tile_169.png"); } catch { }
+                    try { 
+                        bgImg = Image.FromFile("Assets/medium_bg.png"); 
+                    } catch (Exception ex)
+                    {
+                        MessageBox.Show("Nepodaøilo se naèíst pozadí mapy: ", ex.Message);
+                    }
                     break;
                 case "Hard":
                     spawnInterval = 15;
                     pointsPerKill = 10;
                     this.BackColor = Color.DimGray;
-                    try { tileImg = Image.FromFile("Assets/tile_6.png"); } catch { }
+                    try { bgImg = Image.FromFile("Assets/hard_bg.png"); } catch { }
                     break;
             }
 
-            if (tileImg != null)
+            if (bgImg != null)
             {
-                bgBrush = new TextureBrush(tileImg);
+                bgBrush = new TextureBrush(bgImg);
+            }
+        }
+
+        private void LoadAllAssets()
+        {
+            try
+            {
+                playerImg = Image.FromFile("Assets/soldier.png");
+                enemyImg = Image.FromFile("Assets/zombie.png");
+
+                easyAssets.Add(Image.FromFile("Assets/easy_asset1.png"));
+                easyAssets.Add(Image.FromFile("Assets/easy_asset2.png"));
+                easyAssets.Add(Image.FromFile("Assets/easy_asset3.png"));
+
+                mediumAssets.Add(Image.FromFile("Assets/medium_asset1.png"));
+                mediumAssets.Add(Image.FromFile("Assets/medium_asset2.png"));
+                mediumAssets.Add(Image.FromFile("Assets/medium_asset3.png"));
+
+                hardAssets.Add(Image.FromFile("Assets/hard_asset1.png"));
+                hardAssets.Add(Image.FromFile("Assets/hard_asset2.png"));
+                hardAssets.Add(Image.FromFile("Assets/hard_asset3.png"));
+
+            } catch (Exception ex)
+            {
+                MessageBox.Show("Chyba pøi naèítání assetù: " + ex.Message);
             }
         }
 
@@ -114,12 +140,26 @@ namespace ArenaShooter
             obstacles.Clear();
             allEntities.RemoveAll(e => e is Obstacle);
 
+            List<Image> currentAssets = null;
+            int gridSpacing = 0;
+
             switch (currentDifficulty)
             {
-                case "Easy": SetupEasyForest(); break;
-                case "Medium": SetupMediumCity(); break;
-                case "Hard": SetupHardGraveyard(); break;
+                case "Easy":
+                    currentAssets = easyAssets;
+                    gridSpacing = 200;
+                    break;
+                case "Medium":
+                    currentAssets = mediumAssets;
+                    gridSpacing = 200;
+                    break;
+                case "Hard": 
+                    currentAssets = hardAssets;
+                    gridSpacing = 200;
+                    break;
             }
+
+            GenerateMapAssets(currentAssets, gridSpacing);
 
             foreach (var wall in obstacles)
             {
@@ -127,54 +167,34 @@ namespace ArenaShooter
             }
         }
 
-        private void SetupEasyForest()
+        private void GenerateMapAssets(List<Image> mapAssets, int gridStep)
         {
             var screen = Screen.PrimaryScreen.Bounds;
 
-            try
-            {
-                easyTreeImage = Image.FromFile("Assets/tile_183.png");
-                easyBushImage = Image.FromFile("Assets/tile_210.png");
-                easyWoodImage = Image.FromFile("Assets/tile_265.png");
-            }
-            catch { }
+            if (mapAssets == null || mapAssets.Count == 0) return;
 
-            for (int x = 100; x < screen.Width - 100; x += 200)
+            for (int x = 100; x < screen.Width - 100; x += gridStep)
             {
-                for (int y = 100; y < screen.Height - 100; y += 200)
+                for (int y = 100; y < screen.Height - 100; y += gridStep)
                 {
-                    if (Math.Abs(x - screen.Width / 2) < 150 && Math.Abs(y - screen.Height / 2) < 150)
+                    if (Math.Abs(x - screen.Width / 2) < gridStep && Math.Abs(y - screen.Height / 2) < gridStep)
                         continue;
 
                     int offsetX = random.Next(-40, 40);
                     int offsetY = random.Next(-40, 40);
 
-                    int type = random.Next(4);
+                    Image selectedAsset = mapAssets[random.Next(mapAssets.Count)];
 
-                    if (type == 0 || type == 1)
-                    {
-                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 64, 64, easyTreeImage));
-                    }
-                    else if (type == 2)
-                    {
-                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 45, 45, easyBushImage));
-                    }
-                    else
-                    {
-                        obstacles.Add(new Obstacle(x + offsetX, y + offsetY, 50, 40, easyWoodImage));
-                    }
+                    if (selectedAsset == null) continue;
+
+                    obstacles.Add(new Obstacle(
+                        x + offsetX,
+                        y + offsetY,
+                        selectedAsset.Width,
+                        selectedAsset.Height,
+                        selectedAsset));
                 }
             }
-        }
-
-        private void SetupMediumCity()
-        {
-
-        }
-
-        private void SetupHardGraveyard()
-        {
-
         }
 
         private void InitializeGame()
