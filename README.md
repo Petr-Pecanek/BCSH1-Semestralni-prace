@@ -4,7 +4,12 @@
    - zdroj: https://kenney.nl/assets/top-down-shooter
    - autor: Kenney (kenney.nl)
    - licence: Creative Commons CC0
-   - použito: soldier1_machine.png, zoimbie1_hold.png
+   Použité assety:
+   - postavy: soldier1_machine.png, zoimbie1_hold.png
+   - pozadí map: tile_3.png, tile_6.png, tile_169.png
+   - překážky: tile_156.png, tile_183.png, tile_186.png, tile_210.png, tile_237.png, tile_238.png, tile_243.png, tile_292.png, tile_318.png
+<img width="638" height="140" alt="image" src="https://github.com/user-attachments/assets/ddf36361-b1ce-4fda-b6b1-ed21c4b09c7d" />
+
 
 ## Použité technologie a frameworky
 - .NET (verze 8.0/6.0) – základní vývojová platforma pro běh aplikace
