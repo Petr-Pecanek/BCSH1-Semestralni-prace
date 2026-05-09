@@ -1,49 +1,53 @@
 using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
-using System.Text.Json;
+using System.Linq;
+using System.Numerics;
+using System.Windows.Forms;
+
+using ArenaShooter.Data;
+using ArenaShooter.Entities;
+using ArenaShooter.GameDialogs;
 
 namespace ArenaShooter
 {
     public partial class Form1 : Form
     {
-        // 1. kolize zombies vùèi ostatním (h), pøidání pozadí do map (h) a asstù jako pøekážky
-        // (h - all) + zombíci musí obcházet pøekážky jako sami sebe (h), upravit hitboxy
-        // pøekážek (h)
-        // 2. uspoøádat soubory do složek, dodìlat dokumentaci - pøidat postup
-        // a zdokumentovat nové assety do map
-        // 3. udìlat si v kódu poøádek - rozdìlení do metod podle funkce
-        // a odstranìní magic numbers („coding guidelines“ a „naming conventions“
-        // podle jazyka C#)
-        // 4. nauèit se na obhajobu co je to genericita, delegáty, animaèní vlákno atd.
-        // 5. po obhajobì to smazat z gitu - je to chaos a nechci to tam
+        private const int GameTickIntervalMs = 20;
+        private const int WeaponCooldownFrames = 10;
+        private const float RepelForceMultiplier = 0.15f;
+        private const float EnemyRepelDistance = 40f;
+        private const float WallRepelDistance = 50f;
+        private const int SpawnMargin = 50;
 
-        private Player player;
-        private Image playerImg;
-        private Image enemyImg;
-        private bool isMouseDown = false;
-        private Point mousePos;
+        private Player _player;
+        private Image _playerImg;
+        private Image _enemyImg;
+        private bool _isMouseDown = false;
+        private Point _mousePos;
 
-        private List<Entity> allEntities = new List<Entity>();
-        HashSet<Keys> pressedKeys = new HashSet<Keys>();
-        private List<Obstacle> obstacles = new List<Obstacle>();
+        private List<Entity> _allEntities = new List<Entity>();
+        HashSet<Keys> _pressedKeys = new HashSet<Keys>();
+        private List<Obstacle> _obstacles = new List<Obstacle>();
 
-        private Random random = new Random();
-        private Font statsFont = new Font("Arial", 10, FontStyle.Bold);
+        private Random _random = new Random();
+        private Font _statsFont = new Font("Arial", 10, FontStyle.Bold);
 
-        private string currentDifficulty = "Easy";
-        private int spawnInterval = 40;
-        private int spawnTimer;
-        private int fireCooldown = 0;
-        private int pointsPerKill = 5;
+        private string _currentDifficulty = "Easy";
+        private int _spawnInterval = 40;
+        private int _spawnTimer;
+        private int _fireCooldown = 0;
+        private int _pointsPerKill = 5;
+        private int _currentScore;
 
-        private int currentScore;
-        private GameData gameData = new GameData();
-        private DifficultyStats currentStats;
+        private GameData _gameData = new GameData();
+        private DifficultyStats _currentStats;
 
-        private TextureBrush bgBrush;
-        private List<Image> easyAssets = new List<Image>();
-        private List<Image> mediumAssets = new List<Image>();
-        private List<Image> hardAssets = new List<Image>();
+        private TextureBrush _bgBrush;
+        private Image[] _easyAssets;
+        private Image[] _mediumAssets;
+        private Image[] _hardAssets;
 
         public Form1()
         {
@@ -51,127 +55,168 @@ namespace ArenaShooter
             this.DoubleBuffered = true;
             this.Text = "Arena Shooter: Zombie Apocalypse";
 
-            this.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) isMouseDown = true; };
-            this.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) isMouseDown = false; };
-            this.MouseMove += (s, e) => { mousePos = e.Location; };
+            this.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) _isMouseDown = true; };
+            this.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) _isMouseDown = false; };
+            this.MouseMove += (s, e) => { _mousePos = e.Location; };
 
             LoadAllAssets();
 
-            currentDifficulty = GameDialogs.ShowDifficultySelection();
-            if (currentDifficulty == null)
+            _currentDifficulty = DifficultyDialog.Show();
+            if (_currentDifficulty == null)
             {
                 Environment.Exit(0);
                 return;
             }
 
-            gameData = FileManager.Load();
+            _gameData = FileManager.Load();
             ApplyDifficultySettings();
             InitializeGame();
-        }
-
-        private void ApplyDifficultySettings()
-        {
-            this.WindowState = FormWindowState.Maximized;
-            currentStats = gameData.Levels[currentDifficulty];
-
-            this.BackColor = Color.White;
-            Image bgImg = null;
-
-            switch (currentDifficulty)
-            {
-                case "Easy":
-                    spawnInterval = 40;
-                    pointsPerKill = 5;
-                    this.BackColor = Color.ForestGreen;
-                    try { bgImg = Image.FromFile("Assets/easy_bg.png"); } catch { }
-                    break;
-                case "Medium":
-                    spawnInterval= 25;
-                    pointsPerKill = 8;
-                    this.BackColor = Color.DarkGray;
-                    try { 
-                        bgImg = Image.FromFile("Assets/medium_bg.png"); 
-                    } catch (Exception ex)
-                    {
-                        MessageBox.Show("Nepodaøilo se naèíst pozadí mapy: ", ex.Message);
-                    }
-                    break;
-                case "Hard":
-                    spawnInterval = 15;
-                    pointsPerKill = 10;
-                    this.BackColor = Color.DimGray;
-                    try { bgImg = Image.FromFile("Assets/hard_bg.png"); } catch { }
-                    break;
-            }
-
-            if (bgImg != null)
-            {
-                bgBrush = new TextureBrush(bgImg);
-            }
         }
 
         private void LoadAllAssets()
         {
             try
             {
-                playerImg = Image.FromFile("Assets/soldier.png");
-                enemyImg = Image.FromFile("Assets/zombie.png");
+                _playerImg = Image.FromFile("Assets/soldier.png");
+                _enemyImg = Image.FromFile("Assets/zombie.png");
 
-                easyAssets.Add(Image.FromFile("Assets/easy_asset1.png"));
-                easyAssets.Add(Image.FromFile("Assets/easy_asset2.png"));
-                easyAssets.Add(Image.FromFile("Assets/easy_asset3.png"));
+                _easyAssets = new Image[] {
+                Image.FromFile("Assets/easy_asset1.png"),
+                Image.FromFile("Assets/easy_asset2.png"),
+                Image.FromFile("Assets/easy_asset3.png")
+                };
 
-                mediumAssets.Add(Image.FromFile("Assets/medium_asset1.png"));
-                mediumAssets.Add(Image.FromFile("Assets/medium_asset2.png"));
-                mediumAssets.Add(Image.FromFile("Assets/medium_asset3.png"));
+                _mediumAssets = new Image[]
+                {
+                    Image.FromFile("Assets/medium_asset1.png"),
+                    Image.FromFile("Assets/medium_asset2.png"),
+                    Image.FromFile("Assets/medium_asset3.png")
+                };
 
-                hardAssets.Add(Image.FromFile("Assets/hard_asset1.png"));
-                hardAssets.Add(Image.FromFile("Assets/hard_asset2.png"));
-                hardAssets.Add(Image.FromFile("Assets/hard_asset3.png"));
-
-            } catch (Exception ex)
+                _hardAssets = new Image[]
+                {
+                    Image.FromFile("Assets/hard_asset1.png"),
+                    Image.FromFile("Assets/hard_asset2.png"),
+                    Image.FromFile("Assets/hard_asset3.png")
+                };
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show("Chyba pøi naèítání assetù: " + ex.Message);
             }
         }
 
-        private void SetupMap()
+        private void ApplyDifficultySettings()
         {
-            obstacles.Clear();
-            allEntities.RemoveAll(e => e is Obstacle);
+            this.WindowState = FormWindowState.Maximized;
+            _currentStats = _gameData.Levels[_currentDifficulty];
 
-            List<Image> currentAssets = null;
-            int gridSpacing = 0;
+            this.BackColor = Color.White;
+            Image bgImg = null;
 
-            switch (currentDifficulty)
+            switch (_currentDifficulty)
             {
                 case "Easy":
-                    currentAssets = easyAssets;
+                    _spawnInterval = 40;
+                    _pointsPerKill = 5;
+                    this.BackColor = Color.ForestGreen;
+                    try {
+                        bgImg = Image.FromFile("Assets/easy_bg.png"); 
+                    } catch (Exception ex)
+                    {
+                        MessageBox.Show("Nepodaøilo se naèíst pozadí mapy: " + ex.Message);
+                    }
+                    break;
+                case "Medium":
+                    _spawnInterval = 25;
+                    _pointsPerKill = 8;
+                    this.BackColor = Color.DarkGray;
+                    try
+                    {
+                        bgImg = Image.FromFile("Assets/medium_bg.png");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Nepodaøilo se naèíst pozadí mapy: " + ex.Message);
+                    }
+                    break;
+                case "Hard":
+                    _spawnInterval = 15;
+                    _pointsPerKill = 10;
+                    this.BackColor = Color.DimGray;
+                    try { 
+                        bgImg = Image.FromFile("Assets/hard_bg.png"); 
+                    } catch (Exception ex)
+                    {
+                        MessageBox.Show("Nepodaøilo se naèíst pozadí mapy: " + ex.Message);
+                    }
+                    break;
+            }
+
+            if (bgImg != null)
+            {
+                _bgBrush = new TextureBrush(bgImg);
+            }
+        }
+
+        private void InitializeGame()
+        {
+            Cursor.Hide();
+            _pressedKeys.Clear();
+            _allEntities.Clear();
+            _isMouseDown = false;
+            _currentScore = 0;
+            _spawnTimer = 0;
+
+            _player = new Player(0, 0, _playerImg);
+            var screenBounds = Screen.PrimaryScreen.Bounds;
+            _player.X = (screenBounds.Width / 2) - (_player.Width / 2);
+            _player.Y = (screenBounds.Height / 2) - (_player.Height / 2);
+
+            _allEntities.Add(_player);
+            SetupMap();
+
+            timer1.Interval = GameTickIntervalMs;
+            timer1.Start();
+        }
+
+        private void SetupMap()
+        {
+            _obstacles.Clear();
+            _allEntities.RemoveAll(e => e is Obstacle);
+
+            Image[] currentAssets = null;
+            int gridSpacing = 0;
+
+            switch (_currentDifficulty)
+            {
+                case "Easy":
+                    currentAssets = _easyAssets;
                     gridSpacing = 200;
                     break;
                 case "Medium":
-                    currentAssets = mediumAssets;
+                    currentAssets = _mediumAssets;
                     gridSpacing = 200;
                     break;
-                case "Hard": 
-                    currentAssets = hardAssets;
+                case "Hard":
+                    currentAssets = _hardAssets;
                     gridSpacing = 200;
                     break;
             }
 
             GenerateMapAssets(currentAssets, gridSpacing);
 
-            foreach (var wall in obstacles)
+            foreach (var wall in _obstacles)
             {
-                allEntities.Add(wall);
+                _allEntities.Add(wall);
             }
         }
 
-        private void GenerateMapAssets(List<Image> mapAssets, int gridStep)
+        private void GenerateMapAssets(Image[] mapAssets, int gridStep)
         {
             var screen = Screen.PrimaryScreen.Bounds;
 
-            if (mapAssets == null || mapAssets.Count == 0) return;
+            if (mapAssets == null || mapAssets.Length == 0) return;
 
             for (int x = 100; x < screen.Width - 100; x += gridStep)
             {
@@ -180,14 +225,14 @@ namespace ArenaShooter
                     if (Math.Abs(x - screen.Width / 2) < gridStep && Math.Abs(y - screen.Height / 2) < gridStep)
                         continue;
 
-                    int offsetX = random.Next(-40, 40);
-                    int offsetY = random.Next(-40, 40);
+                    int offsetX = _random.Next(-40, 40);
+                    int offsetY = _random.Next(-40, 40);
 
-                    Image selectedAsset = mapAssets[random.Next(mapAssets.Count)];
+                    Image selectedAsset = mapAssets[_random.Next(mapAssets.Length)];
 
                     if (selectedAsset == null) continue;
 
-                    obstacles.Add(new Obstacle(
+                    _obstacles.Add(new Obstacle(
                         x + offsetX,
                         y + offsetY,
                         selectedAsset.Width,
@@ -197,39 +242,19 @@ namespace ArenaShooter
             }
         }
 
-        private void InitializeGame()
-        {
-            Cursor.Hide();
-            pressedKeys.Clear();
-            allEntities.Clear();
-            isMouseDown = false;
-            currentScore = 0;
-            spawnTimer = 0;
-
-            player = new Player(0, 0, playerImg);
-            var screenBounds = Screen.PrimaryScreen.Bounds;
-            player.X = (screenBounds.Width / 2) - (player.Width / 2);
-            player.Y = (screenBounds.Height / 2) - (player.Height / 2);
-
-            allEntities.Add(player);
-            SetupMap();
-
-            timer1.Interval = 20;
-            timer1.Start();
-        }
-
         private void timer1_Tick(object sender, EventArgs e)
         {
-            if (player == null) return;
+            if (_player == null) return;
 
             HandleEnemySpawning();
 
-            if (isMouseDown)
+            if (_isMouseDown)
             {
                 HandleManualShooting();
-            } else
+            }
+            else
             {
-                if (fireCooldown < 10) fireCooldown++;
+                if (_fireCooldown < 10) _fireCooldown++;
             }
 
             UpdateEntities();
@@ -240,87 +265,87 @@ namespace ArenaShooter
 
         private void HandleEnemySpawning()
         {
-            spawnTimer++;
-            if (spawnTimer >= spawnInterval)
+            _spawnTimer++;
+            if (_spawnTimer >= _spawnInterval)
             {
                 SpawnEnemy();
-                spawnTimer = 0;
+                _spawnTimer = 0;
             }
         }
 
         private void SpawnEnemy()
         {
-            int side = random.Next(4);
+            int side = _random.Next(4);
             int x = 0, y = 0;
 
             switch (side)
             {
                 case 0:
-                    x = random.Next(0, this.ClientSize.Width);
-                    y = -50;
+                    x = _random.Next(0, this.ClientSize.Width);
+                    y = -SpawnMargin;
                     break;
                 case 1:
-                    x = random.Next(0, this.ClientSize.Width);
-                    y = this.ClientSize.Height + 50;
+                    x = _random.Next(0, this.ClientSize.Width);
+                    y = this.ClientSize.Height + SpawnMargin;
                     break;
                 case 2:
-                    x = -50;
-                    y = random.Next(0, this.ClientSize.Height);
+                    x = -SpawnMargin;
+                    y = _random.Next(0, this.ClientSize.Height);
                     break;
                 case 3:
-                    x = this.ClientSize.Width + 50;
-                    y = random.Next(0, this.ClientSize.Height);
+                    x = this.ClientSize.Width + SpawnMargin;
+                    y = _random.Next(0, this.ClientSize.Height);
                     break;
             }
 
-            allEntities.Add(new Enemy(x, y, player, enemyImg));
+            _allEntities.Add(new Enemy(x, y, _player, _enemyImg));
         }
 
         private void HandleManualShooting()
         {
-            fireCooldown++;
-            if (fireCooldown >= 10)
+            _fireCooldown++;
+            if (_fireCooldown >= WeaponCooldownFrames)
             {
-                allEntities.Add(new Bullet(
-                    player.X + (player.Width / 2),
-                    player.Y + (player.Height / 2),
-                    mousePos.X,
-                    mousePos.Y));
+                _allEntities.Add(new Bullet(
+                    _player.X + (_player.Width / 2),
+                    _player.Y + (_player.Height / 2),
+                    _mousePos.X,
+                    _mousePos.Y));
 
-                fireCooldown = 0;
+                _fireCooldown = 0;
             }
         }
 
         private void UpdateEntities()
         {
             Point localMouse = this.PointToClient(Cursor.Position);
-            player.UpdateRotation(localMouse);
+            _player.UpdateRotation(localMouse);
 
-            float playerOldX = player.X;
-            float playerOldY = player.Y;
+            float playerOldX = _player.X;
+            float playerOldY = _player.Y;
 
-            foreach (var entity in allEntities)
+            foreach (var entity in _allEntities)
             {
-                entity.Update(pressedKeys);
+                entity.Update(_pressedKeys);
             }
 
-            var enemies = allEntities.OfType<Enemy>().ToList();
+            var enemies = _allEntities.OfType<Enemy>().ToList();
 
             for (int i = 0; i < enemies.Count; i++)
             {
-                foreach (var wall in obstacles)
+                foreach (var wall in _obstacles)
                 {
-                    ApplyRepelForce(enemies[i], wall, 50);
+                    ApplyRepelForce(enemies[i], wall, WallRepelDistance);
                 }
 
                 for (int j = i + 1; j < enemies.Count; j++)
                 {
-                    ApplyRepelForce(enemies[i], enemies[j], 40);
-                    ApplyRepelForce(enemies[j], enemies[i], 40);
+                    ApplyRepelForce(enemies[i], enemies[j], EnemyRepelDistance);
+                    ApplyRepelForce(enemies[j], enemies[i], EnemyRepelDistance);
                 }
             }
 
-            foreach (var entity in allEntities)
+            foreach (var entity in _allEntities)
             {
                 if (entity is Enemy enemy)
                 {
@@ -328,7 +353,7 @@ namespace ArenaShooter
                 }
             }
 
-            HandleEntityWallCollision(player, playerOldX, playerOldY);
+            HandleEntityWallCollision(_player, playerOldX, playerOldY);
             KeepPlayerInScreenBounds();
         }
 
@@ -338,54 +363,85 @@ namespace ArenaShooter
             float dy = (toMove.Y + toMove.Height / 2) - (awayFrom.Y + awayFrom.Height / 2);
             float dist = (float)Math.Sqrt(dx * dx + dy * dy);
 
-            if (dist <  repelDistance && dist > 0)
+            if (dist < repelDistance && dist > 0)
             {
-                toMove.X += (dx / dist) * (repelDistance - dist) * 0.15f;
-                toMove.Y += (dy / dist) * (repelDistance - dist) * 0.15f;
+                toMove.X += (dx / dist) * (repelDistance - dist) * RepelForceMultiplier;
+                toMove.Y += (dy / dist) * (repelDistance - dist) * RepelForceMultiplier;
             }
         }
 
         private void HandleEntityWallCollision(Entity entity, float oldX, float oldY)
         {
-            foreach (var wall in obstacles)
+            foreach (var wall in _obstacles)
             {
                 if (entity.Bounds.IntersectsWith(wall.Bounds))
                 {
+                    float tempX = entity.X;
                     entity.X = oldX;
-                    entity.Y = oldY;
+
+                    if (entity.Bounds.IntersectsWith(wall.Bounds))
+                    {
+                        entity.X = tempX;
+                        entity.Y = oldY;
+
+                        if (entity.Bounds.IntersectsWith(wall.Bounds))
+                        {
+                            entity.X = oldX;
+                        }
+                    }
                     break;
                 }
             }
         }
 
-        private void KeepPlayerInScreenBounds() 
+        private void KeepPlayerInScreenBounds()
         {
-            if (player.X < 0) player.X = 0;
-            if (player.Y < 0) player.Y = 0;
+            if (_player.X < 0) _player.X = 0;
+            if (_player.Y < 0) _player.Y = 0;
 
-            if (player.X + player.Width > this.ClientSize.Width)
+            if (_player.X + _player.Width > this.ClientSize.Width)
             {
-                player.X = this.ClientSize.Width - player.Width;
+                _player.X = this.ClientSize.Width - _player.Width;
             }
-            if (player.Y + player.Height > this.ClientSize.Height)
+            if (_player.Y + _player.Height > this.ClientSize.Height)
             {
-                player.Y = this.ClientSize.Height - player.Height;
+                _player.Y = this.ClientSize.Height - _player.Height;
             }
         }
 
         private void ResolveCollisionsAndCleanup()
         {
             List<Entity> toRemove = new List<Entity>();
-            var bullets = allEntities.OfType<Bullet>().ToList();
-            var enemies = allEntities.OfType<Enemy>().ToList();
+            var bullets = _allEntities.OfType<Bullet>().ToList();
+            var enemies = _allEntities.OfType<Enemy>().ToList();
 
+            CheckPlayerDeath(enemies);
+            HandleBulletHits(bullets, enemies, toRemove);
+            HandleBulletWallCollisions(bullets, toRemove);
+
+            foreach (var item in toRemove.Distinct())
+            {
+                _allEntities.Remove(item);
+            }
+        }
+
+        private void CheckPlayerDeath(List<Enemy> enemies)
+        {
             foreach (var enemy in enemies)
             {
-                if (player.Bounds.IntersectsWith(enemy.Bounds))
+                if (_player.Bounds.IntersectsWith(enemy.Bounds))
                 {
                     GameOver();
                     return;
                 }
+            }
+        }
+
+        private void HandleBulletHits(List<Bullet> bullets, List<Enemy> enemies, List<Entity> toRemove)
+        {
+            foreach (var enemy in enemies)
+            {
+                if (toRemove.Contains(enemy)) continue;
 
                 foreach (var bullet in bullets)
                 {
@@ -393,14 +449,20 @@ namespace ArenaShooter
                     {
                         toRemove.Add(enemy);
                         toRemove.Add(bullet);
-                        currentScore += pointsPerKill;
+                        _currentScore += _pointsPerKill;
+                        break;
                     }
                 }
             }
+        }
 
+        private void HandleBulletWallCollisions(List<Bullet> bullets, List<Entity> toRemove)
+        {
             foreach (var bullet in bullets)
             {
-                foreach (var wall in obstacles)
+                if (toRemove.Contains(bullet)) continue;
+
+                foreach (var wall in _obstacles)
                 {
                     if (bullet.Bounds.IntersectsWith(wall.Bounds))
                     {
@@ -414,11 +476,6 @@ namespace ArenaShooter
                     toRemove.Add(bullet);
                 }
             }
-
-            foreach (var item in toRemove)
-            {
-                allEntities.Remove(item);
-            }
         }
 
         private bool IsOutOfBounds(Bullet b)
@@ -429,22 +486,22 @@ namespace ArenaShooter
         private void GameOver()
         {
             timer1.Stop();
-
             Cursor.Show();
 
-            currentStats.LastScore = currentScore;
-            if (currentScore > currentStats.HighScore)
+            _currentStats.LastScore = _currentScore;
+            if (_currentScore > _currentStats.HighScore)
             {
-                currentStats.HighScore = currentScore;
+                _currentStats.HighScore = _currentScore;
             }
 
-            FileManager.Save(gameData);
-            
-            bool wantsRestart = GameDialogs.ShowGameOver(currentScore, currentStats.HighScore, currentDifficulty);
+            FileManager.Save(_gameData);
+
+            bool wantsRestart = GameOverDialog.Show(_currentScore, _currentStats.HighScore, _currentDifficulty);
             if (wantsRestart)
             {
                 InitializeGame();
-            } else
+            }
+            else
             {
                 Application.Exit();
             }
@@ -452,14 +509,15 @@ namespace ArenaShooter
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            if (string.IsNullOrEmpty(currentDifficulty) || gameData == null) return;
+            if (string.IsNullOrEmpty(_currentDifficulty) || _gameData == null) return;
 
             base.OnPaint(e);
 
-            if (bgBrush != null)
+            if (_bgBrush != null)
             {
-                e.Graphics.FillRectangle(bgBrush, this.ClientRectangle);
-            } else
+                e.Graphics.FillRectangle(_bgBrush, this.ClientRectangle);
+            }
+            else
             {
                 using (Brush b = new SolidBrush(this.BackColor))
                 {
@@ -467,35 +525,35 @@ namespace ArenaShooter
                 }
             }
 
-                foreach (var entity in allEntities)
-                {
-                    entity.Draw(e.Graphics);
-                }
+            foreach (var entity in _allEntities)
+            {
+                entity.Draw(e.Graphics);
+            }
 
             float x = 20;
-            e.Graphics.DrawString($"Difficulty: {currentDifficulty}", statsFont, Brushes.White, x, 20);
-            e.Graphics.DrawString($"Score: {currentScore}", statsFont, Brushes.White, x, 40);
-            e.Graphics.DrawString($"Last: {currentStats.LastScore}", statsFont, Brushes.Gray, x, 60);
-            e.Graphics.DrawString($"Best: {currentStats.HighScore}", statsFont, Brushes.Gold, x, 80);
+            e.Graphics.DrawString($"Difficulty: {_currentDifficulty}", _statsFont, Brushes.White, x, 20);
+            e.Graphics.DrawString($"Score: {_currentScore}", _statsFont, Brushes.White, x, 40);
+            e.Graphics.DrawString($"Last: {_currentStats.LastScore}", _statsFont, Brushes.Gray, x, 60);
+            e.Graphics.DrawString($"Best: {_currentStats.HighScore}", _statsFont, Brushes.Gold, x, 80);
 
             if (!timer1.Enabled) return;
 
             using (Pen sightPen = new Pen(Color.Red, 2))
             {
-                e.Graphics.DrawLine(sightPen, mousePos.X - 10, mousePos.Y, mousePos.X + 10, mousePos.Y);
-                e.Graphics.DrawLine(sightPen, mousePos.X, mousePos.Y - 10, mousePos.X, mousePos.Y + 10);
-                e.Graphics.DrawEllipse(sightPen, mousePos.X - 5, mousePos.Y - 5, 10, 10);
+                e.Graphics.DrawLine(sightPen, _mousePos.X - 10, _mousePos.Y, _mousePos.X + 10, _mousePos.Y);
+                e.Graphics.DrawLine(sightPen, _mousePos.X, _mousePos.Y - 10, _mousePos.X, _mousePos.Y + 10);
+                e.Graphics.DrawEllipse(sightPen, _mousePos.X - 5, _mousePos.Y - 5, 10, 10);
             }
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
-            pressedKeys.Add(e.KeyCode);
+            _pressedKeys.Add(e.KeyCode);
         }
 
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
-            pressedKeys.Remove(e.KeyCode);
+            _pressedKeys.Remove(e.KeyCode);
         }
     }
 }

@@ -2,27 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
+using System.Text.Json;
 
-namespace ArenaShooter
+namespace ArenaShooter.Data
 {
-    public class DifficultyStats
-    {
-        public int HighScore { get; set; } = 0;
-        public int LastScore { get; set; } = 0;
-    }
-
-    public class GameData
-    {
-        public Dictionary<string, DifficultyStats> Levels { get; set; } = new Dictionary<string, DifficultyStats>()
-        {
-            {"Easy", new DifficultyStats() },
-            {"Medium", new DifficultyStats() },
-            {"Hard", new DifficultyStats() }
-        };
-    }
-
     public static class FileManager
     {
         private const string SaveFile = "savegame.json";
@@ -35,7 +19,8 @@ namespace ArenaShooter
             {
                 string jsonString = File.ReadAllText(SaveFile);
                 return JsonSerializer.Deserialize<GameData>(jsonString) ?? new GameData();
-            } catch
+            }
+            catch
             {
                 return new GameData();
             }
